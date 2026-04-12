@@ -141,35 +141,15 @@ class ExcelFilterTool:
         export_frame = ttk.Frame(toolbar)
         export_frame.pack(side=tk.RIGHT)
         
-        # 导出全部按钮
-        self.export_all_btn = ttk.Button(
+        # 导出筛选结果按钮
+        self.export_btn = ttk.Button(
             export_frame,
-            text="导出全部结果",
-            command=lambda: self.export_data(export_selected=False),
+            text="导出筛选结果",
+            command=self.export_filtered_data,
             state=tk.DISABLED,
             width=15
         )
-        self.export_all_btn.pack(side=tk.LEFT, padx=(0, 5), ipady=3)
-
-        # 导出选中按钮
-        self.export_sel_btn = ttk.Button(
-            export_frame,
-            text="导出选中行",
-            command=lambda: self.export_data(export_selected=True),
-            state=tk.DISABLED,
-            width=15
-        )
-        self.export_sel_btn.pack(side=tk.LEFT, ipady=3)
-
-        # 清除筛选按钮
-        self.clear_btn = ttk.Button(
-            toolbar,
-            text="清除筛选",
-            command=self.clear_filters,
-            state=tk.DISABLED,
-            width=12
-        )
-        self.clear_btn.pack(side=tk.RIGHT, padx=(0, 10), ipady=3)
+        self.export_btn.pack(side=tk.LEFT, ipady=3)
         
         # ===== 筛选区域 =====
         self.filter_container = ttk.Frame(main_frame, style="FilterCard.TFrame")
@@ -468,9 +448,7 @@ class ExcelFilterTool:
             self.display_data()
 
             # 启用按钮
-            self.export_all_btn.config(state=tk.NORMAL)
-            self.export_sel_btn.config(state=tk.NORMAL)
-            self.clear_btn.config(state=tk.NORMAL)
+            self.export_btn.config(state=tk.NORMAL)
 
             header_info = f"第 {header_row + 1} 行作为表头" if header_row >= 0 else "无表头"
             self.update_status(f"已加载工作表 '{sheet_name}'，{header_info}，共 {len(self.df)} 行数据")
@@ -541,6 +519,11 @@ class ExcelFilterTool:
             )
             combo.set('')  # 默认为空
             combo.pack(fill=tk.X, pady=(0, 4))
+
+            # 禁用鼠标滚轮滚动
+            combo.bind('<MouseWheel>', lambda e: 'break')
+            combo.bind('<Button-4>', lambda e: 'break')  # Linux
+            combo.bind('<Button-5>', lambda e: 'break')  # Linux
 
             # 绑定事件：输入时过滤下拉选项
             combo.bind('<KeyRelease>', lambda e, c=col_name, cb=combo: self.on_combo_key_release(c, cb))
@@ -623,10 +606,6 @@ class ExcelFilterTool:
         self.display_data()
         self.update_status("已重置所有筛选条件，显示全部数据")
 
-    def clear_filters(self):
-        """清除所有筛选条件（兼容旧方法，调用reset_filters）"""
-        self.reset_filters()
-        
     def display_data(self):
         """在表格中显示数据"""
         # 清除现有数据
@@ -683,58 +662,147 @@ class ExcelFilterTool:
         if len(self.filtered_df) > 1000:
             self.update_status(f"显示前 1000 行（共 {len(self.filtered_df)} 行）")
             
-    def export_data(self, export_selected=False):
-        """导出数据"""
+    def export_filtered_data(self):
+        """导出筛选结果"""
         if self.filtered_df is None or self.filtered_df.empty:
             messagebox.showwarning("警告", "没有可导出的数据")
             return
-            
-        # 确定要导出的数据
-        if export_selected:
-            selected_items = self.tree.selection()
-            if not selected_items:
-                messagebox.showwarning("警告", "请先选择要导出的行")
-                return
-            # 获取选中行的数据（通过行号）
-            selected_row_indices = [int(iid) for iid in selected_items]
-            data_to_show = self.filtered_df.head(1000)
-            selected_data = []
-            for row_idx, (idx, row) in enumerate(data_to_show.iterrows()):
-                if row_idx in selected_row_indices:
-                    selected_data.append(row)
-            export_df = pd.DataFrame(selected_data).copy()
+        
+        # 创建导出格式选择对话框
+        export_dialog = tk.Toplevel(self.root)
+        export_dialog.title("导出筛选结果")
+        export_dialog.geometry("400x200")
+        export_dialog.transient(self.root)
+        export_dialog.grab_set()
+        export_dialog.resizable(False, False)
+        
+        # 居中显示
+        export_dialog.update_idletasks()
+        x = (export_dialog.winfo_screenwidth() // 2) - (400 // 2)
+        y = (export_dialog.winfo_screenheight() // 2) - (200 // 2)
+        export_dialog.geometry(f"+{x}+{y}")
+        
+        # 内容框架
+        content_frame = tk.Frame(export_dialog)
+        content_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        
+        # 提示文本
+        tk.Label(
+            content_frame,
+            text="请选择导出格式",
+            font=('微软雅黑', 12, 'bold')
+        ).pack(pady=(0, 15))
+        
+        # 格式选择
+        format_var = tk.StringVar(value='excel')
+        
+        excel_radio = tk.Radiobutton(
+            content_frame,
+            text="Excel 文件 (.xlsx)",
+            variable=format_var,
+            value='excel',
+            font=('微软雅黑', 10),
+            anchor=tk.W
+        )
+        excel_radio.pack(fill=tk.X, pady=5)
+        
+        md_radio = tk.Radiobutton(
+            content_frame,
+            text="Markdown 文档 (.md)",
+            variable=format_var,
+            value='markdown',
+            font=('微软雅黑', 10),
+            anchor=tk.W
+        )
+        md_radio.pack(fill=tk.X, pady=5)
+        
+        # 文件名显示
+        default_filename = f"{self.excel_file_path.split('/')[-1].split('\\')[-1].rsplit('.', 1)[0]}-筛选结果"
+        tk.Label(
+            content_frame,
+            text=f"默认文件名：{default_filename}",
+            font=('微软雅黑', 8),
+            fg='gray',
+            wraplength=360,
+            justify=tk.LEFT
+        ).pack(pady=(10, 0))
+        
+        result = {'format': None, 'confirmed': False}
+        
+        def on_export():
+            result['format'] = format_var.get()
+            result['confirmed'] = True
+            export_dialog.destroy()
+        
+        def on_cancel():
+            result['confirmed'] = False
+            export_dialog.destroy()
+        
+        # 按钮框架
+        btn_frame = tk.Frame(export_dialog)
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=15)
+        
+        tk.Button(
+            btn_frame,
+            text="导出",
+            command=on_export,
+            font=('微软雅黑', 10),
+            width=12,
+            bg='#0d6efd',
+            fg='white',
+            activebackground='#0b5ed7',
+            cursor='hand2'
+        ).pack(side=tk.LEFT, padx=(0, 10))
+        
+        tk.Button(
+            btn_frame,
+            text="取消",
+            command=on_cancel,
+            font=('微软雅黑', 10),
+            width=12,
+            cursor='hand2'
+        ).pack(side=tk.RIGHT)
+        
+        # 等待对话框关闭
+        self.root.wait_window(export_dialog)
+        
+        if not result['confirmed']:
+            return
+        
+        # 根据选择的格式设置默认扩展名
+        if result['format'] == 'markdown':
+            defaultextension = ".md"
+            filetypes = [("Markdown 文件", "*.md"), ("所有文件", "*.*")]
         else:
-            export_df = self.filtered_df.copy()
-            
-        # 选择导出格式
-        file_types = [
-            ("Excel 文件", "*.xlsx"),
-            ("Markdown 文件", "*.md"),
-            ("所有文件", "*.*")
-        ]
+            defaultextension = ".xlsx"
+            filetypes = [("Excel 文件", "*.xlsx"), ("所有文件", "*.*")]
+        
+        # 默认文件名
+        default_name = f"{default_filename}{defaultextension}"
         
         file_path = filedialog.asksaveasfilename(
-            title="导出数据",
-            defaultextension=".xlsx",
-            filetypes=file_types
+            title="导出筛选结果",
+            defaultextension=defaultextension,
+            filetypes=filetypes,
+            initialfile=default_name
         )
         
         if not file_path:
             return
             
         try:
-            if file_path.endswith('.md'):
+            if result['format'] == 'markdown':
                 # 导出为 Markdown
-                self.export_to_markdown(export_df, file_path)
+                self.export_to_markdown(self.filtered_df, file_path)
             else:
                 # 导出为 Excel
-                export_df.to_excel(file_path, index=False, engine='openpyxl')
+                self.filtered_df.to_excel(file_path, index=False, engine='openpyxl')
                 
             messagebox.showinfo(
                 "成功", 
-                f"已成功导出 {len(export_df)} 行数据到：\n{file_path}"
+                f"已成功导出 {len(self.filtered_df)} 行数据到：\n{file_path}"
             )
-            self.update_status(f"已导出 {len(export_df)} 行数据")
+            self.update_status(f"已导出 {len(self.filtered_df)} 行数据")
             
         except Exception as e:
             messagebox.showerror("错误", f"导出失败：\n{str(e)}")
