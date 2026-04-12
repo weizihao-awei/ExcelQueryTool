@@ -528,7 +528,7 @@ class ExcelFilterTool:
             # 下拉选择框 - 使用更现代的样式
             try:
                 unique_vals = self.df[col_name].dropna().astype(str).unique()
-                unique_values = ['全部'] + sorted(unique_vals, key=str)[:30]
+                unique_values = ['全部'] + sorted(unique_vals, key=str)
             except:
                 unique_values = ['全部']
 
