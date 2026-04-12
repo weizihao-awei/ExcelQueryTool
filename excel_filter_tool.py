@@ -17,7 +17,8 @@ class ExcelFilterTool:
     def __init__(self, root):
         self.root = root
         self.root.title("Excel 筛选处理工具")
-        self.root.geometry("1200x800")
+        # 设置默认全屏显示
+        self.root.state('zoomed')
         self.root.minsize(1000, 600)
         
         # 数据存储
@@ -155,23 +156,36 @@ class ExcelFilterTool:
         self.filter_container = ttk.LabelFrame(main_frame, text="筛选条件", padding="5")
         self.filter_container.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
         self.filter_container.grid_remove()  # 初始隐藏
-        
-        # 创建 Canvas 用于水平滚动
-        self.filter_canvas = tk.Canvas(self.filter_container, height=100, highlightthickness=0)
-        self.filter_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
-        # 水平滚动条
-        filter_hsb = ttk.Scrollbar(self.filter_container, orient="horizontal", command=self.filter_canvas.xview)
-        filter_hsb.pack(side=tk.BOTTOM, fill=tk.X)
-        self.filter_canvas.configure(xscrollcommand=filter_hsb.set)
-        
-        # 筛选框架放在 Canvas 内
-        self.filter_frame = ttk.Frame(self.filter_canvas)
-        self.filter_canvas_window = self.filter_canvas.create_window((0, 0), window=self.filter_frame, anchor=tk.NW)
-        
-        # 绑定事件更新滚动区域
-        self.filter_frame.bind("<Configure>", self.on_filter_frame_configure)
-        self.filter_canvas.bind("<Configure>", self.on_filter_canvas_configure)
+
+        # 筛选框架 - 使用Frame包装以容纳按钮
+        self.filter_wrapper = ttk.Frame(self.filter_container)
+        self.filter_wrapper.pack(fill=tk.BOTH, expand=True)
+
+        # 筛选控件框架
+        self.filter_frame = ttk.Frame(self.filter_wrapper)
+        self.filter_frame.pack(fill=tk.BOTH, expand=True)
+
+        # 筛选操作按钮框架
+        self.filter_btn_frame = ttk.Frame(self.filter_wrapper)
+        self.filter_btn_frame.pack(fill=tk.X, pady=(10, 5))
+
+        # 搜索按钮
+        self.search_btn = ttk.Button(
+            self.filter_btn_frame,
+            text="🔍 搜索",
+            command=self.apply_filters,
+            width=12
+        )
+        self.search_btn.pack(side=tk.LEFT, padx=(0, 10))
+
+        # 重置按钮
+        self.reset_btn = ttk.Button(
+            self.filter_btn_frame,
+            text="↺ 重置",
+            command=self.reset_filters,
+            width=12
+        )
+        self.reset_btn.pack(side=tk.LEFT, padx=(0, 10))
         
         # ===== 数据表格区域 =====
         table_frame = ttk.Frame(main_frame)
@@ -392,17 +406,8 @@ class ExcelFilterTool:
             error_detail = traceback.format_exc()
             messagebox.showerror("错误", f"无法加载工作表：\n{str(e)}\n\n详细信息：\n{error_detail}")
             
-    def on_filter_frame_configure(self, event=None):
-        """更新 Canvas 滚动区域"""
-        self.filter_canvas.configure(scrollregion=self.filter_canvas.bbox("all"))
-
-    def on_filter_canvas_configure(self, event=None):
-        """更新 Canvas 窗口大小"""
-        canvas_width = event.width
-        self.filter_canvas.itemconfig(self.filter_canvas_window, width=canvas_width)
-
     def create_filter_widgets(self):
-        """创建筛选控件"""
+        """创建筛选控件 - 每行5列，每列有下拉框和搜索框（互斥使用）"""
         # 清除旧的筛选控件
         for widget in self.filter_frame.winfo_children():
             widget.destroy()
@@ -412,22 +417,26 @@ class ExcelFilterTool:
             return
 
         self.filter_container.grid()
-        
+
+        # 每行显示的列数 - 改为5列
+        cols_per_row = 5
+
+        # 配置grid权重，使各列均匀分布
+        for c in range(cols_per_row):
+            self.filter_frame.columnconfigure(c, weight=1)
+
         # 为每列创建筛选控件
         for col_idx, col_name in enumerate(self.columns):
-            # 列框架
-            col_frame = ttk.Frame(self.filter_frame)
-            col_frame.pack(side=tk.LEFT, padx=3, pady=2, fill=tk.Y)
+            row = col_idx // cols_per_row
+            col = col_idx % cols_per_row
 
-            # 列标题
-            display_name = str(col_name)[:12] + ('..' if len(str(col_name)) > 12 else '')
-            ttk.Label(
-                col_frame,
-                text=display_name,
-                font=('微软雅黑', 9, 'bold'),
-                width=14,
-                anchor=tk.CENTER
-            ).pack(anchor=tk.N, pady=(0, 2))
+            # 列框架 - 使用LabelFrame，调整padding和间距
+            col_frame = ttk.LabelFrame(
+                self.filter_frame,
+                text=str(col_name)[:15],  # 列名显示限制
+                padding="6"
+            )
+            col_frame.grid(row=row, column=col, padx=5, pady=4, sticky=(tk.W, tk.E))
 
             # 下拉选择框
             try:
@@ -439,69 +448,157 @@ class ExcelFilterTool:
             combo = ttk.Combobox(
                 col_frame,
                 values=unique_values,
-                width=13,
+                width=18,
                 state='readonly',
                 font=('微软雅黑', 9)
             )
             combo.set('全部')
-            combo.pack(anchor=tk.N, pady=(0, 2))
-            combo.bind('<<ComboboxSelected>>', lambda e: self.apply_filters())
+            combo.pack(fill=tk.X, pady=(0, 3))
+            combo.bind('<<ComboboxSelected>>', lambda e, c=col_name: self.on_combo_selected(c))
+
+            # 关键字搜索框框架（用于放置提示文字）
+            entry_frame = ttk.Frame(col_frame)
+            entry_frame.pack(fill=tk.X)
 
             # 关键字搜索框
-            entry = ttk.Entry(col_frame, width=13, font=('微软雅黑', 9))
-            entry.pack(anchor=tk.N)
-            entry.bind('<KeyRelease>', lambda e: self.apply_filters())
+            entry = ttk.Entry(entry_frame, width=18, font=('微软雅黑', 9), foreground='gray')
+            entry.pack(fill=tk.X)
+
+            # 添加提示文字功能
+            placeholder = "输入关键词搜索..."
+            entry.insert(0, placeholder)
+
+            def on_entry_focus_in(event, ent=entry, ph=placeholder):
+                if ent.get() == ph:
+                    ent.delete(0, tk.END)
+                    ent.config(foreground='black')
+
+            def on_entry_focus_out(event, ent=entry, ph=placeholder):
+                if not ent.get().strip():
+                    ent.delete(0, tk.END)
+                    ent.insert(0, ph)
+                    ent.config(foreground='gray')
+
+            def on_entry_key_release(event, c=col_name, ent=entry, ph=placeholder):
+                # 只有不是提示文字时才触发
+                if ent.get() != ph:
+                    self.on_entry_typed_key(c, ent.get())
+
+            entry.bind('<FocusIn>', on_entry_focus_in)
+            entry.bind('<FocusOut>', on_entry_focus_out)
+            entry.bind('<KeyRelease>', on_entry_key_release)
 
             # 保存控件引用
             self.filter_widgets[col_name] = {
+                'frame': col_frame,
                 'combo': combo,
-                'entry': entry
+                'entry': entry,
+                'placeholder': placeholder
             }
+
+        # 确保筛选区域可见
+        self.filter_frame.update_idletasks()
+
+    def on_combo_selected(self, col_name):
+        """下拉框被选择时 - 仅更新UI状态，不自动搜索"""
+        widgets = self.filter_widgets.get(col_name)
+        if not widgets:
+            return
+
+        combo_value = widgets['combo'].get()
+        placeholder = widgets.get('placeholder', '输入关键词搜索...')
+
+        # 如果选择了具体值，清空搜索框并显示灰色提示
+        if combo_value != '全部':
+            widgets['entry'].delete(0, tk.END)
+            widgets['entry'].insert(0, placeholder)
+            widgets['entry'].config(foreground='gray', state='readonly')
+        else:
+            # 恢复搜索框
+            widgets['entry'].config(state='normal')
+            widgets['entry'].delete(0, tk.END)
+            widgets['entry'].insert(0, placeholder)
+            widgets['entry'].config(foreground='gray')
+
+    def on_entry_typed_key(self, col_name, entry_value):
+        """搜索框输入时 - 仅更新UI状态，不自动搜索"""
+        widgets = self.filter_widgets.get(col_name)
+        if not widgets:
+            return
+
+        # 如果搜索框有实际内容（不是提示文字），禁用下拉框
+        if entry_value.strip():
+            widgets['combo'].set('全部')
+            widgets['combo'].config(state='disabled')
+        else:
+            # 恢复下拉框
+            widgets['combo'].config(state='readonly')
             
     def apply_filters(self):
-        """应用筛选条件"""
+        """应用筛选条件 - 点击搜索按钮时调用"""
         if self.df is None:
             return
-            
+
         # 从原始数据开始筛选
         mask = pd.Series([True] * len(self.df), index=self.df.index)
-        
+        active_filters = 0
+
         for col_name, widgets in self.filter_widgets.items():
+            placeholder = widgets.get('placeholder', '输入关键词搜索...')
+
+            # 检查下拉框
             combo_value = widgets['combo'].get()
-            entry_value = widgets['entry'].get().strip()
-            
-            # 下拉筛选
             if combo_value != '全部':
                 mask &= self.df[col_name].astype(str) == combo_value
-                
-            # 关键字筛选
-            if entry_value:
+                active_filters += 1
+                continue  # 下拉框有值时跳过搜索框检查
+
+            # 检查搜索框（排除提示文字）
+            entry_value = widgets['entry'].get().strip()
+            if entry_value and entry_value != placeholder:
                 mask &= self.df[col_name].astype(str).str.contains(
-                    entry_value, 
-                    case=False, 
+                    entry_value,
+                    case=False,
                     na=False
                 )
-        
+                active_filters += 1
+
         # 应用筛选
         self.filtered_df = self.df[mask].copy()
-        
+
         # 刷新显示
         self.display_data()
-        
+
         # 更新状态
-        self.update_status(f"筛选结果：{len(self.filtered_df)} / {len(self.df)} 行")
-        
-    def clear_filters(self):
-        """清除所有筛选条件"""
+        filter_info = f"（{active_filters}个筛选条件）" if active_filters > 0 else ""
+        self.update_status(f"筛选结果：{len(self.filtered_df)} / {len(self.df)} 行{filter_info}")
+
+    def reset_filters(self):
+        """重置所有筛选条件到初始状态"""
         if not self.filter_widgets:
             return
-            
-        for widgets in self.filter_widgets.values():
+
+        for col_name, widgets in self.filter_widgets.items():
+            placeholder = widgets.get('placeholder', '输入关键词搜索...')
+
+            # 重置下拉框
+            widgets['combo'].config(state='readonly')
             widgets['combo'].set('全部')
+
+            # 重置搜索框
+            widgets['entry'].config(state='normal')
             widgets['entry'].delete(0, tk.END)
-            
-        self.apply_filters()
-        self.update_status("已清除所有筛选条件")
+            widgets['entry'].insert(0, placeholder)
+            widgets['entry'].config(foreground='gray')
+
+        # 重置数据为全部
+        self.filtered_df = self.df.copy()
+        self.display_data()
+        self.update_status("已重置所有筛选条件，显示全部数据")
+
+    def clear_filters(self):
+        """清除所有筛选条件（兼容旧方法，调用reset_filters）"""
+        self.reset_filters()
         
     def display_data(self):
         """在表格中显示数据"""
