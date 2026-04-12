@@ -88,10 +88,34 @@ class ExcelFilterTool:
         self.sheet_combo = ttk.Combobox(
             self.sheet_frame,
             state='readonly',
-            width=20
+            width=15
         )
         self.sheet_combo.pack(side=tk.LEFT, padx=(5, 0))
         self.sheet_combo.bind('<<ComboboxSelected>>', self.on_sheet_selected)
+
+        # 表头行设置
+        self.header_frame = ttk.Frame(toolbar)
+        self.header_frame.pack(side=tk.LEFT, padx=(15, 0))
+
+        ttk.Label(self.header_frame, text="表头行:").pack(side=tk.LEFT)
+        self.header_var = tk.StringVar(value='1')
+        self.header_spin = tk.Spinbox(
+            self.header_frame,
+            from_=1,
+            to=10,
+            width=5,
+            textvariable=self.header_var
+        )
+        self.header_spin.pack(side=tk.LEFT, padx=(5, 0))
+
+        # 应用表头按钮
+        self.apply_header_btn = ttk.Button(
+            self.header_frame,
+            text="应用",
+            command=self.reload_current_sheet,
+            width=6
+        )
+        self.apply_header_btn.pack(side=tk.LEFT, padx=(5, 0))
         
         # 导出按钮框架
         export_frame = ttk.Frame(toolbar)
@@ -224,13 +248,121 @@ class ExcelFilterTool:
         """工作表选择事件"""
         selected_sheet = self.sheet_combo.get()
         if selected_sheet:
-            self.load_sheet(selected_sheet)
+            # 切换工作表时询问表头行
+            self.load_sheet(selected_sheet, ask_header=True)
 
-    def load_sheet(self, sheet_name):
+    def reload_current_sheet(self):
+        """重新加载当前工作表（用于表头行变更）"""
+        current_sheet = self.sheet_combo.get()
+        if current_sheet:
+            # 点击应用按钮时不询问，直接使用当前设置的表头行
+            self.load_sheet(current_sheet, ask_header=False)
+
+    def ask_header_row(self, sheet_name):
+        """弹窗询问用户表头行设置"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("设置表头行")
+        dialog.geometry("350x180")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.resizable(False, False)
+
+        # 居中显示
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (350 // 2)
+        y = (dialog.winfo_screenheight() // 2) - (180 // 2)
+        dialog.geometry(f"+{x}+{y}")
+
+        # 提示文本
+        tk.Label(
+            dialog,
+            text=f"工作表: {sheet_name}",
+            font=('微软雅黑', 10, 'bold')
+        ).place(x=20, y=15)
+
+        tk.Label(
+            dialog,
+            text="请选择哪一行作为列名（表头）:",
+            font=('微软雅黑', 10)
+        ).place(x=20, y=45)
+
+        # 表头行选择 - 使用绝对定位
+        tk.Label(dialog, text="第", font=('微软雅黑', 10)).place(x=80, y=75)
+
+        header_var = tk.StringVar(value='1')
+        spin = tk.Spinbox(
+            dialog,
+            from_=1,
+            to=10,
+            width=6,
+            textvariable=header_var,
+            font=('微软雅黑', 10),
+            justify=tk.CENTER
+        )
+        spin.place(x=100, y=75)
+
+        tk.Label(dialog, text="行", font=('微软雅黑', 10)).place(x=165, y=75)
+
+        result = [1]  # 使用列表存储结果
+
+        def on_ok():
+            try:
+                result[0] = int(header_var.get())
+            except:
+                result[0] = 1
+            dialog.destroy()
+
+        def on_cancel():
+            result[0] = None
+            dialog.destroy()
+
+        # 按钮 - 使用绝对定位，固定大小
+        ok_btn = tk.Button(
+            dialog,
+            text="确定",
+            command=on_ok,
+            font=('微软雅黑', 10),
+            width=8,
+            height=1
+        )
+        ok_btn.place(x=70, y=120)
+
+        cancel_btn = tk.Button(
+            dialog,
+            text="取消",
+            command=on_cancel,
+            font=('微软雅黑', 10),
+            width=8,
+            height=1
+        )
+        cancel_btn.place(x=190, y=120)
+
+        # 等待对话框关闭
+        self.root.wait_window(dialog)
+        return result[0]
+
+    def load_sheet(self, sheet_name, ask_header=True):
         """加载指定工作表"""
         try:
-            # 读取指定工作表
-            self.df = pd.read_excel(self.excel_file_path, sheet_name=sheet_name)
+            # 如果需要询问表头行
+            if ask_header:
+                header_row_input = self.ask_header_row(sheet_name)
+                if header_row_input is None:
+                    return  # 用户取消
+                self.header_var.set(str(header_row_input))
+
+            # 获取表头行设置（用户输入是1-based，pandas需要0-based）
+            try:
+                header_row = int(self.header_var.get()) - 1
+            except:
+                header_row = 0
+
+            # 读取指定工作表，指定表头行
+            self.df = pd.read_excel(
+                self.excel_file_path,
+                sheet_name=sheet_name,
+                header=header_row
+            )
 
             # 重置索引为整数，避免浮点数索引问题
             self.df = self.df.reset_index(drop=True)
@@ -252,7 +384,8 @@ class ExcelFilterTool:
             self.export_sel_btn.config(state=tk.NORMAL)
             self.clear_btn.config(state=tk.NORMAL)
 
-            self.update_status(f"已加载工作表 '{sheet_name}'，共 {len(self.df)} 行数据")
+            header_info = f"第 {header_row + 1} 行作为表头" if header_row >= 0 else "无表头"
+            self.update_status(f"已加载工作表 '{sheet_name}'，{header_info}，共 {len(self.df)} 行数据")
 
         except Exception as e:
             import traceback
