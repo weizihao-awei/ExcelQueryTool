@@ -504,12 +504,11 @@ class ExcelFilterTool:
             row = col_idx // cols_per_row
             col = col_idx % cols_per_row
 
-            # 列框架 - 使用轻量级卡片设计
+            # 列框架 - 使用轻量级卡片设计，无边框
             col_frame = tk.Frame(
                 self.filter_frame,
                 bg='white',
-                highlightbackground='#e9ecef',
-                highlightthickness=1,
+                highlightthickness=0,
                 padx=8,
                 pady=6
             )
@@ -548,16 +547,17 @@ class ExcelFilterTool:
             entry_frame = tk.Frame(col_frame, bg='white')
             entry_frame.pack(fill=tk.X)
 
-            # 关键字搜索框 - 带边框样式
+            # 关键字搜索框 - 扁平样式，无聚焦边框
             entry = tk.Entry(
                 entry_frame,
                 width=16,
                 font=('微软雅黑', 9),
                 fg='#adb5bd',
-                relief=tk.SOLID,
-                bd=1,
-                highlightbackground='#dee2e6',
-                highlightthickness=1
+                relief=tk.FLAT,
+                bd=0,
+                highlightthickness=0,
+                selectbackground='#0d6efd',
+                selectforeground='white'
             )
             entry.pack(fill=tk.X, ipady=2)
 
@@ -568,13 +568,13 @@ class ExcelFilterTool:
             def on_entry_focus_in(event, ent=entry, ph=placeholder):
                 if ent.get() == ph:
                     ent.delete(0, tk.END)
-                    ent.config(fg='#212529', highlightbackground='#0d6efd', highlightthickness=1)
+                    ent.config(fg='#212529')
 
             def on_entry_focus_out(event, ent=entry, ph=placeholder):
                 if not ent.get().strip():
                     ent.delete(0, tk.END)
                     ent.insert(0, ph)
-                    ent.config(fg='#adb5bd', highlightbackground='#dee2e6', highlightthickness=1)
+                    ent.config(fg='#adb5bd')
 
             def on_entry_key_release(event, c=col_name, ent=entry, ph=placeholder):
                 # 只有不是提示文字时才触发
