@@ -25,6 +25,8 @@ class ExcelFilterTool:
         self.filtered_df = None  # 筛选后的数据
         self.columns = []  # 列名列表
         self.filter_widgets = {}  # 筛选控件字典
+        self.excel_file_path = None  # Excel 文件路径
+        self.sheet_names = []  # 工作表名称列表
         
         # 设置样式
         self.setup_styles()
@@ -77,6 +79,19 @@ class ExcelFilterTool:
         # 数据信息
         self.info_label = ttk.Label(toolbar, text="")
         self.info_label.pack(side=tk.LEFT)
+
+        # 工作表选择
+        self.sheet_frame = ttk.Frame(toolbar)
+        self.sheet_frame.pack(side=tk.LEFT, padx=(20, 0))
+
+        ttk.Label(self.sheet_frame, text="工作表:").pack(side=tk.LEFT)
+        self.sheet_combo = ttk.Combobox(
+            self.sheet_frame,
+            state='readonly',
+            width=20
+        )
+        self.sheet_combo.pack(side=tk.LEFT, padx=(5, 0))
+        self.sheet_combo.bind('<<ComboboxSelected>>', self.on_sheet_selected)
         
         # 导出按钮框架
         export_frame = ttk.Frame(toolbar)
@@ -179,13 +194,43 @@ class ExcelFilterTool:
                 ("所有文件", "*.*")
             ]
         )
-        
+
         if not file_path:
             return
-            
+
+        self.excel_file_path = file_path
+
         try:
-            # 读取 Excel 文件
-            self.df = pd.read_excel(file_path)
+            # 获取所有工作表名称
+            xl = pd.ExcelFile(file_path)
+            self.sheet_names = xl.sheet_names
+
+            # 更新工作表选择下拉框
+            self.sheet_combo['values'] = self.sheet_names
+            if self.sheet_names:
+                self.sheet_combo.set(self.sheet_names[0])
+                # 加载第一个工作表
+                self.load_sheet(self.sheet_names[0])
+
+            # 更新界面
+            self.file_label.config(text=file_path.split('/')[-1].split('\\')[-1], foreground="black")
+
+        except Exception as e:
+            import traceback
+            error_detail = traceback.format_exc()
+            messagebox.showerror("错误", f"无法读取文件：\n{str(e)}\n\n详细信息：\n{error_detail}")
+
+    def on_sheet_selected(self, event=None):
+        """工作表选择事件"""
+        selected_sheet = self.sheet_combo.get()
+        if selected_sheet:
+            self.load_sheet(selected_sheet)
+
+    def load_sheet(self, sheet_name):
+        """加载指定工作表"""
+        try:
+            # 读取指定工作表
+            self.df = pd.read_excel(self.excel_file_path, sheet_name=sheet_name)
 
             # 重置索引为整数，避免浮点数索引问题
             self.df = self.df.reset_index(drop=True)
@@ -194,7 +239,6 @@ class ExcelFilterTool:
             self.columns = list(self.df.columns)
 
             # 更新界面
-            self.file_label.config(text=file_path.split('/')[-1].split('\\')[-1], foreground="black")
             self.info_label.config(text=f"共 {len(self.df)} 行 × {len(self.columns)} 列")
 
             # 创建筛选控件
@@ -208,12 +252,12 @@ class ExcelFilterTool:
             self.export_sel_btn.config(state=tk.NORMAL)
             self.clear_btn.config(state=tk.NORMAL)
 
-            self.update_status(f"成功加载文件，共 {len(self.df)} 行数据")
+            self.update_status(f"已加载工作表 '{sheet_name}'，共 {len(self.df)} 行数据")
 
         except Exception as e:
             import traceback
             error_detail = traceback.format_exc()
-            messagebox.showerror("错误", f"无法读取文件：\n{str(e)}\n\n详细信息：\n{error_detail}")
+            messagebox.showerror("错误", f"无法加载工作表：\n{str(e)}\n\n详细信息：\n{error_detail}")
             
     def on_filter_frame_configure(self, event=None):
         """更新 Canvas 滚动区域"""
