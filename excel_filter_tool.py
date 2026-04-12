@@ -671,7 +671,7 @@ class ExcelFilterTool:
         # 创建导出格式选择对话框
         export_dialog = tk.Toplevel(self.root)
         export_dialog.title("导出筛选结果")
-        export_dialog.geometry("400x200")
+        export_dialog.geometry("420x240")
         export_dialog.transient(self.root)
         export_dialog.grab_set()
         export_dialog.resizable(False, False)
