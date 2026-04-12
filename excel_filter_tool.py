@@ -112,6 +112,11 @@ class ExcelFilterTool:
         )
         self.sheet_combo.pack(side=tk.LEFT, padx=(5, 0))
         self.sheet_combo.bind('<<ComboboxSelected>>', self.on_sheet_selected)
+        
+        # 禁用鼠标滚轮滚动
+        self.sheet_combo.bind('<MouseWheel>', lambda e: 'break')
+        self.sheet_combo.bind('<Button-4>', lambda e: 'break')  # Linux
+        self.sheet_combo.bind('<Button-5>', lambda e: 'break')  # Linux
 
         # 表头行设置
         self.header_frame = ttk.Frame(toolbar)
