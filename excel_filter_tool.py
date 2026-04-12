@@ -597,39 +597,30 @@ class ExcelFilterTool:
         self.filter_frame.update_idletasks()
 
     def on_combo_selected(self, col_name):
-        """下拉框被选择时 - 仅更新UI状态，不自动搜索"""
+        """下拉框被选择时 - 清空搜索栏"""
         widgets = self.filter_widgets.get(col_name)
         if not widgets:
             return
 
         combo_value = widgets['combo'].get()
-        placeholder = widgets.get('placeholder', '输入关键词搜索...')
+        placeholder = widgets.get('placeholder', '输入关键词...')
 
-        # 如果选择了具体值，清空搜索框并显示灰色提示
-        if combo_value != '全部':
-            widgets['entry'].delete(0, tk.END)
-            widgets['entry'].insert(0, placeholder)
-            widgets['entry'].config(foreground='gray', state='readonly')
-        else:
-            # 恢复搜索框
-            widgets['entry'].config(state='normal')
-            widgets['entry'].delete(0, tk.END)
-            widgets['entry'].insert(0, placeholder)
-            widgets['entry'].config(foreground='gray')
+        # 无论选择什么，都清空搜索框
+        widgets['entry'].delete(0, tk.END)
+        widgets['entry'].insert(0, placeholder)
+        widgets['entry'].config(fg='#adb5bd')
 
     def on_entry_typed_key(self, col_name, entry_value):
-        """搜索框输入时 - 仅更新UI状态，不自动搜索"""
+        """搜索框输入时 - 下拉框改为全部"""
         widgets = self.filter_widgets.get(col_name)
         if not widgets:
             return
 
-        # 如果搜索框有实际内容（不是提示文字），禁用下拉框
-        if entry_value.strip():
+        placeholder = widgets.get('placeholder', '输入关键词...')
+
+        # 如果搜索框有实际内容（不是提示文字），下拉框改为全部
+        if entry_value.strip() and entry_value != placeholder:
             widgets['combo'].set('全部')
-            widgets['combo'].config(state='disabled')
-        else:
-            # 恢复下拉框
-            widgets['combo'].config(state='readonly')
             
     def apply_filters(self):
         """应用筛选条件 - 点击搜索按钮时调用"""
