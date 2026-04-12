@@ -48,6 +48,25 @@ class ExcelFilterTool:
                        font=('微软雅黑', 10, 'bold'),
                        background='#f0f0f0')
         
+        # 配置筛选卡片样式 - 轻量级边框
+        style.configure("FilterCard.TFrame",
+                       background='white')
+        
+        # 配置筛选标签样式
+        style.configure("FilterLabel.TLabel",
+                       font=('微软雅黑', 9, 'bold'),
+                       foreground='#333333',
+                       background='white')
+        
+        # 配置筛选区头部样式
+        style.configure("FilterHeader.TFrame",
+                       background='#f8f9fa')
+        
+        # 配置折叠按钮样式
+        style.configure("Toggle.TButton",
+                       font=('微软雅黑', 9),
+                       padding=2)
+        
     def create_ui(self):
         """创建用户界面"""
         # 主框架
@@ -153,37 +172,92 @@ class ExcelFilterTool:
         self.clear_btn.pack(side=tk.RIGHT, padx=(0, 10), ipady=3)
         
         # ===== 筛选区域 =====
-        self.filter_container = ttk.LabelFrame(main_frame, text="筛选条件", padding="5")
+        self.filter_container = ttk.Frame(main_frame, style="FilterCard.TFrame")
         self.filter_container.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
         self.filter_container.grid_remove()  # 初始隐藏
-
-        # 筛选框架 - 使用Frame包装以容纳按钮
-        self.filter_wrapper = ttk.Frame(self.filter_container)
-        self.filter_wrapper.pack(fill=tk.BOTH, expand=True)
-
+        
+        # 配置筛选容器列权重
+        self.filter_container.columnconfigure(0, weight=1)
+        
+        # 筛选区头部 - 包含标题和折叠按钮
+        self.filter_header = tk.Frame(self.filter_container, bg='#f8f9fa', 
+                                      highlightbackground='#dee2e6', highlightthickness=1)
+        self.filter_header.grid(row=0, column=0, sticky=(tk.W, tk.E))
+        self.filter_header.columnconfigure(0, weight=1)
+        
+        # 筛选区标题
+        self.filter_title = tk.Label(
+            self.filter_header,
+            text="📋 筛选条件",
+            font=('微软雅黑', 10, 'bold'),
+            bg='#f8f9fa',
+            fg='#495057',
+            padx=10,
+            pady=8
+        )
+        self.filter_title.grid(row=0, column=0, sticky=tk.W)
+        
+        # 折叠/展开按钮
+        self.toggle_btn = tk.Button(
+            self.filter_header,
+            text="▼ 收起",
+            font=('微软雅黑', 9),
+            bg='#f8f9fa',
+            fg='#6c757d',
+            relief=tk.FLAT,
+            cursor='hand2',
+            command=self.toggle_filter_panel,
+            padx=10,
+            pady=5
+        )
+        self.toggle_btn.grid(row=0, column=1, sticky=tk.E, padx=5)
+        
+        # 筛选内容区域（可折叠）
+        self.filter_content = tk.Frame(self.filter_container, bg='white',
+                                       highlightbackground='#dee2e6', 
+                                       highlightthickness=1)
+        self.filter_content.grid(row=1, column=0, sticky=(tk.W, tk.E))
+        self.filter_content.columnconfigure(0, weight=1)
+        
         # 筛选控件框架
-        self.filter_frame = ttk.Frame(self.filter_wrapper)
-        self.filter_frame.pack(fill=tk.BOTH, expand=True)
+        self.filter_frame = tk.Frame(self.filter_content, bg='white', padx=8, pady=8)
+        self.filter_frame.grid(row=0, column=0, sticky=(tk.W, tk.E))
 
         # 筛选操作按钮框架
-        self.filter_btn_frame = ttk.Frame(self.filter_wrapper)
-        self.filter_btn_frame.pack(fill=tk.X, pady=(10, 5))
+        self.filter_btn_frame = tk.Frame(self.filter_content, bg='white', padx=10, pady=10)
+        self.filter_btn_frame.grid(row=1, column=0, sticky=(tk.W, tk.E))
 
-        # 搜索按钮
-        self.search_btn = ttk.Button(
+        # 搜索按钮 - 使用更醒目的样式
+        self.search_btn = tk.Button(
             self.filter_btn_frame,
             text="🔍 搜索",
+            font=('微软雅黑', 9),
+            bg='#0d6efd',
+            fg='white',
+            activebackground='#0b5ed7',
+            activeforeground='white',
+            relief=tk.FLAT,
+            cursor='hand2',
             command=self.apply_filters,
-            width=12
+            padx=15,
+            pady=5
         )
         self.search_btn.pack(side=tk.LEFT, padx=(0, 10))
 
         # 重置按钮
-        self.reset_btn = ttk.Button(
+        self.reset_btn = tk.Button(
             self.filter_btn_frame,
             text="↺ 重置",
+            font=('微软雅黑', 9),
+            bg='#6c757d',
+            fg='white',
+            activebackground='#5c636a',
+            activeforeground='white',
+            relief=tk.FLAT,
+            cursor='hand2',
             command=self.reset_filters,
-            width=12
+            padx=15,
+            pady=5
         )
         self.reset_btn.pack(side=tk.LEFT, padx=(0, 10))
         
@@ -430,15 +504,29 @@ class ExcelFilterTool:
             row = col_idx // cols_per_row
             col = col_idx % cols_per_row
 
-            # 列框架 - 使用LabelFrame，调整padding和间距
-            col_frame = ttk.LabelFrame(
+            # 列框架 - 使用轻量级卡片设计
+            col_frame = tk.Frame(
                 self.filter_frame,
-                text=str(col_name)[:15],  # 列名显示限制
-                padding="6"
+                bg='white',
+                highlightbackground='#e9ecef',
+                highlightthickness=1,
+                padx=8,
+                pady=6
             )
-            col_frame.grid(row=row, column=col, padx=5, pady=4, sticky=(tk.W, tk.E))
+            col_frame.grid(row=row, column=col, padx=4, pady=3, sticky=(tk.W, tk.E))
 
-            # 下拉选择框
+            # 列名标签 - 更紧凑的设计
+            col_label = tk.Label(
+                col_frame,
+                text=str(col_name)[:18],  # 列名显示限制
+                font=('微软雅黑', 9, 'bold'),
+                bg='white',
+                fg='#495057',
+                anchor='w'
+            )
+            col_label.pack(fill=tk.X, pady=(0, 4))
+
+            # 下拉选择框 - 使用更现代的样式
             try:
                 unique_vals = self.df[col_name].dropna().astype(str).unique()
                 unique_values = ['全部'] + sorted(unique_vals, key=str)[:30]
@@ -448,36 +536,45 @@ class ExcelFilterTool:
             combo = ttk.Combobox(
                 col_frame,
                 values=unique_values,
-                width=18,
+                width=16,
                 state='readonly',
                 font=('微软雅黑', 9)
             )
             combo.set('全部')
-            combo.pack(fill=tk.X, pady=(0, 3))
+            combo.pack(fill=tk.X, pady=(0, 4))
             combo.bind('<<ComboboxSelected>>', lambda e, c=col_name: self.on_combo_selected(c))
 
-            # 关键字搜索框框架（用于放置提示文字）
-            entry_frame = ttk.Frame(col_frame)
+            # 关键字搜索框
+            entry_frame = tk.Frame(col_frame, bg='white')
             entry_frame.pack(fill=tk.X)
 
-            # 关键字搜索框
-            entry = ttk.Entry(entry_frame, width=18, font=('微软雅黑', 9), foreground='gray')
-            entry.pack(fill=tk.X)
+            # 关键字搜索框 - 带边框样式
+            entry = tk.Entry(
+                entry_frame,
+                width=16,
+                font=('微软雅黑', 9),
+                fg='#adb5bd',
+                relief=tk.SOLID,
+                bd=1,
+                highlightbackground='#dee2e6',
+                highlightthickness=1
+            )
+            entry.pack(fill=tk.X, ipady=2)
 
             # 添加提示文字功能
-            placeholder = "输入关键词搜索..."
+            placeholder = "输入关键词..."
             entry.insert(0, placeholder)
 
             def on_entry_focus_in(event, ent=entry, ph=placeholder):
                 if ent.get() == ph:
                     ent.delete(0, tk.END)
-                    ent.config(foreground='black')
+                    ent.config(fg='#212529', highlightbackground='#0d6efd', highlightthickness=1)
 
             def on_entry_focus_out(event, ent=entry, ph=placeholder):
                 if not ent.get().strip():
                     ent.delete(0, tk.END)
                     ent.insert(0, ph)
-                    ent.config(foreground='gray')
+                    ent.config(fg='#adb5bd', highlightbackground='#dee2e6', highlightthickness=1)
 
             def on_entry_key_release(event, c=col_name, ent=entry, ph=placeholder):
                 # 只有不是提示文字时才触发
@@ -747,6 +844,19 @@ class ExcelFilterTool:
             else:
                 width += 1
         return width
+
+    def toggle_filter_panel(self):
+        """折叠/展开筛选区"""
+        if self.filter_content.winfo_viewable():
+            # 当前可见，执行折叠
+            self.filter_content.grid_remove()
+            self.toggle_btn.config(text="▶ 展开")
+            self.filter_title.config(text=f"📋 筛选条件 ({len(self.columns)}个字段)")
+        else:
+            # 当前隐藏，执行展开
+            self.filter_content.grid()
+            self.toggle_btn.config(text="▼ 收起")
+            self.filter_title.config(text="📋 筛选条件")
 
 
 def main():
