@@ -605,26 +605,44 @@ class ExcelFilterTool:
         # 清除现有数据
         for item in self.tree.get_children():
             self.tree.delete(item)
-            
+
         # 清除列
         self.tree['columns'] = ()
-        
+
         if self.filtered_df is None or self.filtered_df.empty:
             return
-            
+
         # 设置列
         self.tree['columns'] = self.columns
-        
-        # 配置列
+
+        # 获取表格显示区域的宽度
+        self.tree.update_idletasks()
+        tree_width = self.tree.winfo_width()
+        if tree_width < 100:  # 如果还未渲染，使用默认值
+            tree_width = 800
+
+        # 计算每列的权重（基于列名长度）
+        col_weights = []
         for col in self.columns:
+            col_name_width = self._calc_text_width(str(col))
+            col_weights.append(max(col_name_width, 5))  # 最小权重为5
+
+        total_weight = sum(col_weights)
+        num_cols = len(self.columns)
+
+        # 配置列 - 自适应宽度，刚好占满显示区域
+        for i, col in enumerate(self.columns):
             self.tree.heading(col, text=col, anchor=tk.W)
-            # 根据内容长度设置列宽
-            max_len = max(
-                len(str(col)),
-                int(self.filtered_df[col].astype(str).str.len().max()) if len(self.filtered_df) > 0 else 0
-            )
-            width = int(min(max(max_len * 10, 80), 300))
-            self.tree.column(col, width=width, anchor=tk.W)
+            # 计算该列应占的比例
+            weight_ratio = col_weights[i] / total_weight if total_weight > 0 else 1 / num_cols
+            # 计算列宽
+            col_width = int(tree_width * weight_ratio)
+            # 最小宽度确保能显示列名
+            min_width = int(col_weights[i] * 9 + 20)
+            col_width = max(col_width, min_width)
+            # 最后一列stretch=True以填充剩余空间
+            is_last = (i == num_cols - 1)
+            self.tree.column(col, width=col_width, minwidth=min_width, anchor=tk.W, stretch=is_last)
         
         # 插入数据（分批加载以提高性能）
         batch_size = 100
@@ -717,6 +735,18 @@ class ExcelFilterTool:
     def update_status(self, message):
         """更新状态栏"""
         self.status_label.config(text=message)
+
+    def _calc_text_width(self, text):
+        """计算文本宽度，中文字符按2个单位宽度计算"""
+        width = 0
+        for char in str(text):
+            if '\u4e00' <= char <= '\u9fff':  # 中文字符范围
+                width += 2
+            elif char.isupper():
+                width += 1.2  # 大写字母稍宽
+            else:
+                width += 1
+        return width
 
 
 def main():
