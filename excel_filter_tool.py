@@ -525,102 +525,59 @@ class ExcelFilterTool:
             )
             col_label.pack(fill=tk.X, pady=(0, 4))
 
-            # 下拉选择框 - 使用更现代的样式
+            # 下拉选择框 - 可编辑，支持输入搜索和下拉选择
             try:
                 unique_vals = self.df[col_name].dropna().astype(str).unique()
-                unique_values = ['全部'] + sorted(unique_vals, key=str)
+                all_unique_values = sorted(unique_vals, key=str)
             except:
-                unique_values = ['全部']
+                all_unique_values = []
 
             combo = ttk.Combobox(
                 col_frame,
-                values=unique_values,
+                values=all_unique_values,
                 width=16,
-                state='readonly',
+                state='normal',  # 可编辑状态
                 font=('微软雅黑', 9)
             )
-            combo.set('全部')
+            combo.set('')  # 默认为空
             combo.pack(fill=tk.X, pady=(0, 4))
+
+            # 绑定事件：输入时过滤下拉选项
+            combo.bind('<KeyRelease>', lambda e, c=col_name, cb=combo: self.on_combo_key_release(c, cb))
+            # 绑定事件：选择时应用筛选
             combo.bind('<<ComboboxSelected>>', lambda e, c=col_name: self.on_combo_selected(c))
-
-            # 关键字搜索框
-            entry_frame = tk.Frame(col_frame, bg='white')
-            entry_frame.pack(fill=tk.X)
-
-            # 关键字搜索框 - 扁平样式，无聚焦边框
-            entry = tk.Entry(
-                entry_frame,
-                width=16,
-                font=('微软雅黑', 9),
-                fg='#adb5bd',
-                relief=tk.FLAT,
-                bd=0,
-                highlightthickness=0,
-                selectbackground='#0d6efd',
-                selectforeground='white'
-            )
-            entry.pack(fill=tk.X, ipady=2)
-
-            # 添加提示文字功能
-            placeholder = "输入关键词..."
-            entry.insert(0, placeholder)
-
-            def on_entry_focus_in(event, ent=entry, ph=placeholder):
-                if ent.get() == ph:
-                    ent.delete(0, tk.END)
-                    ent.config(fg='#212529')
-
-            def on_entry_focus_out(event, ent=entry, ph=placeholder):
-                if not ent.get().strip():
-                    ent.delete(0, tk.END)
-                    ent.insert(0, ph)
-                    ent.config(fg='#adb5bd')
-
-            def on_entry_key_release(event, c=col_name, ent=entry, ph=placeholder):
-                # 只有不是提示文字时才触发
-                if ent.get() != ph:
-                    self.on_entry_typed_key(c, ent.get())
-
-            entry.bind('<FocusIn>', on_entry_focus_in)
-            entry.bind('<FocusOut>', on_entry_focus_out)
-            entry.bind('<KeyRelease>', on_entry_key_release)
 
             # 保存控件引用
             self.filter_widgets[col_name] = {
                 'frame': col_frame,
                 'combo': combo,
-                'entry': entry,
-                'placeholder': placeholder
+                'all_values': all_unique_values  # 保存所有原始值用于过滤
             }
 
         # 确保筛选区域可见
         self.filter_frame.update_idletasks()
 
+    def on_combo_key_release(self, col_name, combo):
+        """下拉框输入时 - 动态过滤选项"""
+        widgets = self.filter_widgets.get(col_name)
+        if not widgets:
+            return
+
+        all_values = widgets.get('all_values', [])
+        current_text = combo.get()
+
+        # 过滤匹配的值
+        if current_text.strip():
+            filtered_values = [v for v in all_values if current_text.lower() in v.lower()]
+            combo['values'] = filtered_values
+        else:
+            # 输入为空时，恢复所有选项
+            combo['values'] = all_values
+
     def on_combo_selected(self, col_name):
-        """下拉框被选择时 - 清空搜索栏"""
-        widgets = self.filter_widgets.get(col_name)
-        if not widgets:
-            return
-
-        combo_value = widgets['combo'].get()
-        placeholder = widgets.get('placeholder', '输入关键词...')
-
-        # 无论选择什么，都清空搜索框
-        widgets['entry'].delete(0, tk.END)
-        widgets['entry'].insert(0, placeholder)
-        widgets['entry'].config(fg='#adb5bd')
-
-    def on_entry_typed_key(self, col_name, entry_value):
-        """搜索框输入时 - 下拉框改为全部"""
-        widgets = self.filter_widgets.get(col_name)
-        if not widgets:
-            return
-
-        placeholder = widgets.get('placeholder', '输入关键词...')
-
-        # 如果搜索框有实际内容（不是提示文字），下拉框改为全部
-        if entry_value.strip() and entry_value != placeholder:
-            widgets['combo'].set('全部')
+        """下拉框被选择时 - 自动应用筛选"""
+        # 选择后自动应用筛选
+        self.apply_filters()
             
     def apply_filters(self):
         """应用筛选条件 - 点击搜索按钮时调用"""
@@ -632,23 +589,10 @@ class ExcelFilterTool:
         active_filters = 0
 
         for col_name, widgets in self.filter_widgets.items():
-            placeholder = widgets.get('placeholder', '输入关键词搜索...')
-
-            # 检查下拉框
-            combo_value = widgets['combo'].get()
-            if combo_value != '全部':
+            # 检查下拉框（如果有输入值）
+            combo_value = widgets['combo'].get().strip()
+            if combo_value:
                 mask &= self.df[col_name].astype(str) == combo_value
-                active_filters += 1
-                continue  # 下拉框有值时跳过搜索框检查
-
-            # 检查搜索框（排除提示文字）
-            entry_value = widgets['entry'].get().strip()
-            if entry_value and entry_value != placeholder:
-                mask &= self.df[col_name].astype(str).str.contains(
-                    entry_value,
-                    case=False,
-                    na=False
-                )
                 active_filters += 1
 
         # 应用筛选
@@ -667,17 +611,12 @@ class ExcelFilterTool:
             return
 
         for col_name, widgets in self.filter_widgets.items():
-            placeholder = widgets.get('placeholder', '输入关键词搜索...')
+            all_values = widgets.get('all_values', [])
 
-            # 重置下拉框
-            widgets['combo'].config(state='readonly')
-            widgets['combo'].set('全部')
-
-            # 重置搜索框
-            widgets['entry'].config(state='normal')
-            widgets['entry'].delete(0, tk.END)
-            widgets['entry'].insert(0, placeholder)
-            widgets['entry'].config(foreground='gray')
+            # 重置下拉框 - 恢复所有选项并清空输入
+            widgets['combo'].config(state='normal')
+            widgets['combo']['values'] = all_values
+            widgets['combo'].set('')
 
         # 重置数据为全部
         self.filtered_df = self.df.copy()
