@@ -186,28 +186,34 @@ class ExcelFilterTool:
         try:
             # 读取 Excel 文件
             self.df = pd.read_excel(file_path)
+
+            # 重置索引为整数，避免浮点数索引问题
+            self.df = self.df.reset_index(drop=True)
+
             self.filtered_df = self.df.copy()
             self.columns = list(self.df.columns)
-            
+
             # 更新界面
             self.file_label.config(text=file_path.split('/')[-1].split('\\')[-1], foreground="black")
             self.info_label.config(text=f"共 {len(self.df)} 行 × {len(self.columns)} 列")
-            
+
             # 创建筛选控件
             self.create_filter_widgets()
-            
+
             # 显示数据
             self.display_data()
-            
+
             # 启用按钮
             self.export_all_btn.config(state=tk.NORMAL)
             self.export_sel_btn.config(state=tk.NORMAL)
             self.clear_btn.config(state=tk.NORMAL)
-            
+
             self.update_status(f"成功加载文件，共 {len(self.df)} 行数据")
-            
+
         except Exception as e:
-            messagebox.showerror("错误", f"无法读取文件：\n{str(e)}")
+            import traceback
+            error_detail = traceback.format_exc()
+            messagebox.showerror("错误", f"无法读取文件：\n{str(e)}\n\n详细信息：\n{error_detail}")
             
     def on_filter_frame_configure(self, event=None):
         """更新 Canvas 滚动区域"""
@@ -341,18 +347,19 @@ class ExcelFilterTool:
             # 根据内容长度设置列宽
             max_len = max(
                 len(str(col)),
-                self.filtered_df[col].astype(str).str.len().max() if len(self.filtered_df) > 0 else 0
+                int(self.filtered_df[col].astype(str).str.len().max()) if len(self.filtered_df) > 0 else 0
             )
-            width = min(max(max_len * 10, 80), 300)
+            width = int(min(max(max_len * 10, 80), 300))
             self.tree.column(col, width=width, anchor=tk.W)
         
         # 插入数据（分批加载以提高性能）
         batch_size = 100
         data_to_show = self.filtered_df.head(1000)  # 最多显示1000行
         
-        for idx, row in data_to_show.iterrows():
+        for row_idx, (idx, row) in enumerate(data_to_show.iterrows()):
             values = [str(v) if pd.notna(v) else '' for v in row.values]
-            self.tree.insert('', tk.END, iid=str(int(idx)) if pd.notna(idx) else str(idx), values=values)
+            # 使用行号作为 iid，避免索引类型问题
+            self.tree.insert('', tk.END, iid=str(row_idx), values=values)
             
         if len(self.filtered_df) > 1000:
             self.update_status(f"显示前 1000 行（共 {len(self.filtered_df)} 行）")
@@ -369,14 +376,14 @@ class ExcelFilterTool:
             if not selected_items:
                 messagebox.showwarning("警告", "请先选择要导出的行")
                 return
-            # 获取选中行的索引
-            selected_indices = []
-            for iid in selected_items:
-                try:
-                    selected_indices.append(int(iid))
-                except ValueError:
-                    selected_indices.append(iid)
-            export_df = self.df.loc[selected_indices].copy()
+            # 获取选中行的数据（通过行号）
+            selected_row_indices = [int(iid) for iid in selected_items]
+            data_to_show = self.filtered_df.head(1000)
+            selected_data = []
+            for row_idx, (idx, row) in enumerate(data_to_show.iterrows()):
+                if row_idx in selected_row_indices:
+                    selected_data.append(row)
+            export_df = pd.DataFrame(selected_data).copy()
         else:
             export_df = self.filtered_df.copy()
             
