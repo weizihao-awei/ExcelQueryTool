@@ -30,7 +30,7 @@ class ExcelDataHandler:
         except Exception as e:
             raise Exception(f"无法读取文件：{str(e)}")
     
-    def load_sheet(self, sheet_name, header_row=0):
+    def load_sheet(self, sheet_name, header_row=0, fill_nan=False):
         """加载指定工作表"""
         try:
             # 读取指定工作表，指定表头行
@@ -42,6 +42,10 @@ class ExcelDataHandler:
 
             # 重置索引为整数，避免浮点数索引问题
             self.df = self.df.reset_index(drop=True)
+
+            # 如果需要填充 nan 值
+            if fill_nan:
+                self.df = self.df.fillna('')
 
             self.filtered_df = self.df.copy()
             self.columns = list(self.df.columns)
@@ -71,7 +75,8 @@ class ExcelDataHandler:
         
         for col_name, value in filter_criteria.items():
             if value.strip():
-                mask &= self.df[col_name].astype(str) == value.strip()
+                # 只匹配非 nan 值且等于筛选值的行
+                mask &= (pd.notna(self.df[col_name])) & (self.df[col_name].astype(str) == value.strip())
 
         # 应用筛选
         self.filtered_df = self.df[mask].copy()

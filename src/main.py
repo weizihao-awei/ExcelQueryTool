@@ -8,6 +8,7 @@
 import tkinter as tk
 from tkinter import filedialog
 import traceback
+import pandas as pd
 from .data_handler import ExcelDataHandler
 from .ui_components import ExcelFilterUI
 from .utils import get_file_name_from_path, get_default_export_filename
@@ -139,7 +140,7 @@ class ExcelFilterApp:
     
     def reset_filters(self):
         """重置所有筛选条件"""
-        if not self.data_handler.df:
+        if self.data_handler.df is None:
             return
 
         # 重置数据
@@ -167,7 +168,7 @@ class ExcelFilterApp:
         # 转换数据格式
         data = []
         for _, row in data_to_show.iterrows():
-            values = [str(v) if v is not None else '' for v in row.values]
+            values = [str(v) if pd.notna(v) else '' for v in row.values]
             data.append(values)
         
         # 显示数据
