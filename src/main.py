@@ -134,8 +134,17 @@ class ExcelFilterApp:
         
         # 更新状态
         active_filters = len(filter_criteria)
-        filter_info = f"（{active_filters}个筛选条件）" if active_filters > 0 else ""
         total_count = len(self.data_handler.df)
+        
+        if active_filters > 0:
+            # 构建详细的筛选信息
+            filter_details = []
+            for col_name, value in filter_criteria.items():
+                filter_details.append(f"{col_name}: '{value}'")
+            filter_info = f"（模糊匹配：{', '.join(filter_details)}）"
+        else:
+            filter_info = ""
+            
         self.ui.update_status(f"筛选结果：{filtered_count} / {total_count} 行{filter_info}")
     
     def reset_filters(self):

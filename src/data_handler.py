@@ -75,8 +75,8 @@ class ExcelDataHandler:
         
         for col_name, value in filter_criteria.items():
             if value.strip():
-                # 只匹配非 nan 值且等于筛选值的行
-                mask &= (pd.notna(self.df[col_name])) & (self.df[col_name].astype(str) == value.strip())
+                # 只匹配非 nan 值且包含筛选值的行（模糊匹配）
+                mask &= (pd.notna(self.df[col_name])) & (self.df[col_name].astype(str).str.contains(value.strip(), case=False))
 
         # 应用筛选
         self.filtered_df = self.df[mask].copy()
