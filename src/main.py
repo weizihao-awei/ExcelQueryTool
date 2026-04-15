@@ -249,37 +249,6 @@ class ExcelFilterApp:
             
         except Exception as e:
             self.ui.show_error("错误", f"导出失败：\n{str(e)}")
-    
-    def add_serial_number(self):
-        """添加序号列"""
-        if self.data_handler.df is None:
-            self.ui.show_warning("警告", "请先打开 Excel 文件")
-            return
-        
-        try:
-            # 调用数据处理模块添加序号列
-            success = self.data_handler.add_serial_number()
-            
-            if success:
-                # 更新筛选控件
-                self.ui.create_filter_widgets(
-                    self.data_handler.columns,
-                    self.data_handler.get_unique_values
-                )
-                
-                # 重新显示数据
-                self.display_data()
-                
-                # 更新状态
-                self.ui.update_status("已成功添加序号列")
-                
-                # 显示成功消息
-                self.ui.show_info("成功", "已成功为数据添加序号列")
-            else:
-                self.ui.show_error("错误", "添加序号列失败")
-                
-        except Exception as e:
-            self.ui.show_error("错误", f"添加序号列失败：\n{str(e)}")
 
 
 def main():

@@ -80,12 +80,20 @@ class ExcelDataHandler:
 
         # 应用筛选
         self.filtered_df = self.df[mask].copy()
+        
+        # 筛选后重新编号序号列
+        if '序号' in self.filtered_df.columns:
+            self.filtered_df['序号'] = range(1, len(self.filtered_df) + 1)
+        
         return len(self.filtered_df)
     
     def reset_filters(self):
         """重置所有筛选条件"""
         if self.df is not None:
             self.filtered_df = self.df.copy()
+            # 重置后重新编号序号列
+            if '序号' in self.filtered_df.columns:
+                self.filtered_df['序号'] = range(1, len(self.filtered_df) + 1)
     
     def export_to_excel(self, file_path):
         """导出为 Excel 文件"""
