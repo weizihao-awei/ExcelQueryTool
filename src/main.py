@@ -140,8 +140,18 @@ class ExcelFilterApp:
             # 构建详细的筛选信息
             filter_details = []
             for col_name, value in filter_criteria.items():
-                filter_details.append(f"{col_name}: '{value}'")
-            filter_info = f"（模糊匹配：{', '.join(filter_details)}）"
+                # 检查是否是精确匹配（下拉框中存在的值）
+                is_exact_match = False
+                if col_name in self.ui.filter_widgets:
+                    all_values = self.ui.filter_widgets[col_name].get('all_values', [])
+                    is_exact_match = value in all_values
+                
+                # 根据匹配类型添加不同的标记
+                if is_exact_match:
+                    filter_details.append(f"{col_name}: '{value}'（精确匹配）")
+                else:
+                    filter_details.append(f"{col_name}: '{value}'（模糊匹配）")
+            filter_info = f"（{', '.join(filter_details)}）"
         else:
             filter_info = ""
             
