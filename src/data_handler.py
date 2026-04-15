@@ -6,6 +6,7 @@ Excel 数据处理模块
 """
 
 import pandas as pd
+import re
 
 
 class ExcelDataHandler:
@@ -75,8 +76,10 @@ class ExcelDataHandler:
         
         for col_name, value in filter_criteria.items():
             if value.strip():
+                # 转义正则表达式特殊字符，避免特殊字符导致匹配失败
+                escaped_value = re.escape(value.strip())
                 # 只匹配非 nan 值且包含筛选值的行（模糊匹配）
-                mask &= (pd.notna(self.df[col_name])) & (self.df[col_name].astype(str).str.contains(value.strip(), case=False))
+                mask &= (pd.notna(self.df[col_name])) & (self.df[col_name].astype(str).str.contains(escaped_value, case=False))
 
         # 应用筛选
         self.filtered_df = self.df[mask].copy()
