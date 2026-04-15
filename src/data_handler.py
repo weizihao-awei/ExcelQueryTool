@@ -142,3 +142,34 @@ class ExcelDataHandler:
             return 0
         
         return len(self.filtered_df)
+    
+    def add_serial_number(self, column_name="序号"):
+        """为数据添加序号列
+        
+        Args:
+            column_name: 序号列的名称，默认为"序号"
+        """
+        if self.df is None:
+            return False
+        
+        try:
+            # 为原始数据添加序号列
+            if column_name in self.df.columns:
+                # 如果序号列已存在，先删除
+                self.df = self.df.drop(columns=[column_name])
+            
+            # 在最前面添加序号列
+            self.df.insert(0, column_name, range(1, len(self.df) + 1))
+            
+            # 同步更新筛选后的数据
+            if self.filtered_df is not None:
+                if column_name in self.filtered_df.columns:
+                    self.filtered_df = self.filtered_df.drop(columns=[column_name])
+                self.filtered_df.insert(0, column_name, range(1, len(self.filtered_df) + 1))
+            
+            # 更新列名列表
+            self.columns = list(self.df.columns)
+            
+            return True
+        except Exception as e:
+            raise Exception(f"添加序号列失败：{str(e)}")
