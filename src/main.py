@@ -185,7 +185,7 @@ class ExcelFilterApp:
         
         # 准备数据
         columns = self.data_handler.columns
-        data_to_show = self.data_handler.filtered_df.head(1000)  # 最多显示1000行
+        data_to_show = self.data_handler.filtered_df.head(2000)  # 最多显示2000行
         
         # 转换数据格式
         data = []
@@ -197,8 +197,8 @@ class ExcelFilterApp:
         self.ui.display_data(columns, data)
         
         # 更新状态
-        if len(self.data_handler.filtered_df) > 1000:
-            self.ui.update_status(f"显示前 1000 行（共 {len(self.data_handler.filtered_df)} 行）")
+        if len(self.data_handler.filtered_df) > 2000:
+            self.ui.update_status(f"显示前 2000 行（共 {len(self.data_handler.filtered_df)} 行，为避免卡顿仅显示部分数据，导出时仍为全部数据）")
     
     def export_filtered_data(self):
         """导出筛选结果"""
